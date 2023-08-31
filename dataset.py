@@ -1,7 +1,4 @@
-import re
 from datasets import load_dataset
-from transformers import AutoTokenizer
-
 
 def get_dataset(data_file, tokenizer):
    
@@ -28,10 +25,3 @@ def get_dataset(data_file, tokenizer):
     data = load_dataset("json", data_files=data_file)["train"]
     data = data.map(generate_and_tokenize_prompt, num_proc=8,remove_columns=list(data.features))
     return data
-
-
-if __name__ == "__main__":
-    check_point = r"E:\models\THUDM\chatglm2-6b-int4"
-    tokenizer = AutoTokenizer.from_pretrained(check_point, trust_remote_code=True)
-    ds = get_dataset("./data/example_data.json", tokenizer)
-    print(ds[1])

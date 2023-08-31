@@ -1,4 +1,5 @@
-from transformers import Trainer, TrainingArguments, HfArgumentParser, set_seed, DataCollatorForSeq2Seq
+from matplotlib.pyplot import cla
+from transformers import Trainer, TrainingArguments, HfArgumentParser, set_seed, DataCollatorForSeq2Seq, AutoTokenizer
 from peft import (
     LoraConfig,
     get_peft_model,
@@ -14,18 +15,24 @@ from dataset import get_dataset
 # 定义一些配置信息
 @dataclass
 class FinetuneArguments:
-    model_name: str = field()
-    model_path: str = field()
-    data_name: str = field()
-    data_path: str = field()
+    model_ckpt: str = field(default="/home/dev/model/chatglm2-6B/")
+    data_path: str = field(default="./data/example_data.json")
     train_size: int = field(default=-1)
-    test_size: int = field(default=200)
+    test_size: int = field(default=0)
     max_len: int = field(default=1024)
     lora_rank: int = field(default=8)
+    #---------Lora 参数---------------------
     lora_modules: str = field(default=None)
-    quantization: str = field(default="4bit")
     lora_alpha: int = field(default=16)
     lora_dropout: float = field(default=0.05)
+    #---------QLora 参数----------------------
+    q_lora:bool = field(default=True)
+    quantization: str = field(default="4bit")
+
+
+@dataclass
+class TrainingArguments(TrainingArguments):
+    output_dir: str = field(default="./output")
 
 
 def find_all_linear_names(model, quantization):
@@ -52,11 +59,19 @@ def main():
     set_seed(training_args.seed)
 
     ############# prepare data ###########
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.model_ckpt, trust_remote_code=True)
+    if tokenizer.pad_token_id is None:
+        print(f"pass unk_token_id {tokenizer.unk_token_id} to pad_token_id")
+        tokenizer.pad_token_id = tokenizer.unk_token_id
+
     data = get_dataset(args.data_path, tokenizer)
 
-    if args.train_size > 0:
-        data = data.shuffle(seed=training_args.seed).select(
-            range(args.train_size))
+    # if args.train_size > 0:
+    #     data = data.shuffle(seed=training_args.seed).select(
+    #         range(args.train_size))
+    #     print(data)
+    #     assert 0
 
     if args.test_size > 0:
         train_val = data.train_test_split(
@@ -65,14 +80,15 @@ def main():
         train_data = train_val["train"].shuffle(seed=training_args.seed)
         val_data = train_val["test"].shuffle(seed=training_args.seed)
     else:
-        train_data = data['train'].shuffle(seed=training_args.seed)
+        train_data = data.shuffle(seed=training_args.seed)
         val_data = None
 
     ####### prepare model ############
-    model, tokenizer = load_model(args.model_path, args.quantization)
+    model = load_model(args)
     model = prepare_model_for_kbit_training(model)
 
     modules = find_all_linear_names(model, args.quantization)
+
     target_modules = args.lora_modules.split(
         ",") if args.lora_modules is not None else modules
     config = LoraConfig(
