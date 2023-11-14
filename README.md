@@ -1,4 +1,5 @@
 # LLms_finetuning
+**弃坑了，不再维护了，打工仔没事时间写开源代码。  /苦笑**
 
 致力于用简洁的代码实现对现有大模型（chatGLM1/2、BaiChuan、QWen、Internlm、Llama等）的训练、推理和部署。
 
